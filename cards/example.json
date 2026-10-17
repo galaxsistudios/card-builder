@@ -1,0 +1,11 @@
+{
+  "id": "example",
+  "name": "Example Dragon",
+  "type": "Effect Monster",
+  "frameType": "effect",
+  "atk": 2400,
+  "def": 2000,
+  "level": 7,
+  "attribute": "DARK",
+  "art": "example-art.jpg"
+}
