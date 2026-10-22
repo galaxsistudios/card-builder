@@ -1,4 +1,5 @@
-import { ArtBox } from "./types";
+import { OverlayOptions } from "sharp";
+import { ArtBox, TextFieldStyle } from "./types";
 
 export const ART_BOX: Record<string, ArtBox> = {
 	normal: { left: 89, top: 191, width: 530, height: 530 },
@@ -99,7 +100,7 @@ export const LINK_ARROW_NAME_CANDIDATES: Record<string, string[]> = {
 	"Bottom-Right": ["BR", "bottom-right-on"],
 };
 
-export const TEXT_STYLE: Record<"atk" | "def" | "link" | "scale", any> = {
+export const TEXT_STYLE: Record<"atk" | "def" | "link" | "scale", TextFieldStyle> = {
 	atk: {
 		fontFamily: "sans-serif",
 		color: "#000000",
@@ -145,7 +146,7 @@ export const FX_LABELS: Record<string, string> = {
 	fx_parallell_rare: "Parallel Rare",
 };
 
-export const BLEND_MODE_MAP: Record<string, NonNullable<any>> = {
+export const BLEND_MODE_MAP: Record<string, NonNullable<OverlayOptions["blend"]>> = {
 	multiply: "multiply",
 	screen: "screen",
 	overlay: "overlay",

@@ -13,6 +13,27 @@ const paddingRules = [
 	{ blankLine: "any", prev: "block-like", next: ["break", "continue"] },
 ];
 
+// `multiline-comment-style` skips JSDoc-style blocks, so flag those separately - CODING_STANDARDS.md
+// asks for a condensed `//` comment instead of a `/** ... */` block.
+const noJsdocBlocks = {
+	meta: { type: "suggestion", schema: [] },
+	create(context) {
+		return {
+			Program() {
+				for (const comment of context.sourceCode.getAllComments()) {
+					if (comment.type === "Block" && comment.value.startsWith("*")) {
+						context.report({
+							loc: comment.loc,
+							message:
+								"Use `//` comments instead of a `/** ... */` block (see CODING_STANDARDS.md).",
+						});
+					}
+				}
+			},
+		};
+	},
+};
+
 module.exports = [
 	{
 		ignores: [
@@ -32,10 +53,17 @@ module.exports = [
 		},
 		plugins: {
 			"@typescript-eslint": tsPlugin,
+			local: { rules: { "no-jsdoc-blocks": noJsdocBlocks } },
 		},
 		rules: {
 			"padding-line-between-statements": paddingRules,
 			"multiline-comment-style": ["warn", "separate-lines"],
+			"local/no-jsdoc-blocks": "warn",
+			"@typescript-eslint/no-explicit-any": "error",
+			"@typescript-eslint/no-unused-vars": [
+				"error",
+				{ argsIgnorePattern: "^_", caughtErrors: "none" },
+			],
 		},
 	},
 	prettierConfig,

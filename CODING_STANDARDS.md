@@ -31,6 +31,12 @@ Run `npm run lint` to check, `npm run lint:fix` to auto-fix. Config lives in
 - Only keep a multi-line block when a single sentence would genuinely lose a necessary invariant
   (e.g. a multi-step priority/precedence rule).
 
-ESLint's `multiline-comment-style` rule will flag (as a warning) any remaining `/** ... */` block
-so it doesn't go unnoticed, but converting it to a well-condensed single sentence is a judgment
+ESLint warns on any remaining `/** ... */` block (via the local `no-jsdoc-blocks` rule in
+[eslint.config.js](eslint.config.js), since `multiline-comment-style` ignores JSDoc-style blocks), but converting it to a well-condensed single sentence is a judgment
 call `--fix` can't make safely — do that by hand.
+
+## Types
+
+- Remove unused imports, variables, and functions (`@typescript-eslint/no-unused-vars` is an error;
+  prefix an intentionally unused parameter with `_`).
+- Don't use `any` (`@typescript-eslint/no-explicit-any` is an error); use a real type or `unknown`.

@@ -1,5 +1,5 @@
 import { ProxyCard } from "../types";
-import { LayerNode, RenderPlan, TextFieldStyle } from "./types";
+import { CardKind, LayerNode, PsdTree, RenderPlan } from "./types";
 import {
 	LAYER_PATHS,
 	BORDER_NAME_CANDIDATES,
@@ -45,13 +45,7 @@ export function forceOnlyVisible(
 	if (child) forceVisibleChain(plan, child);
 }
 
-function normalizeCardType(card: ProxyCard): {
-	isMonster: boolean;
-	isSpell: boolean;
-	isTrap: boolean;
-	isXyz: boolean;
-	isPendulum: boolean;
-} {
+function normalizeCardType(card: ProxyCard): CardKind {
 	const type = (card.type ?? "").toUpperCase();
 	const frameType = (card.frameType ?? "").toLowerCase();
 
@@ -66,16 +60,6 @@ function normalizeCardType(card: ProxyCard): {
 		isXyz: frameType.includes("xyz"),
 		isPendulum: frameType.includes("pendulum"),
 	};
-}
-
-function findTextLeaf(node: LayerNode): LayerNode | undefined {
-	if (node.raw?.text) return node;
-	for (const child of node.children) {
-		const found = findTextLeaf(child);
-		if (found) return found;
-	}
-
-	return undefined;
 }
 
 function formatStat(value: number | null | undefined): string {
@@ -100,7 +84,7 @@ function findFxNode(root: LayerNode, key: string): LayerNode | undefined {
 }
 
 export function buildRenderPlan(
-	tree: any,
+	tree: PsdTree,
 	card: ProxyCard,
 	options?: { overframe?: boolean },
 ): RenderPlan {
@@ -192,7 +176,11 @@ export function buildRenderPlan(
 // findChild reaches them directly, rather than findDescendant's 2-level search from further up,
 // which silently missed them (meaning the Pendulum/non-Pendulum choice below never actually ran
 // until now; whichever variant the PSD happened to default to - "Eff_Box" - just always showed).
-function revealOverframeEffectBox(plan: RenderPlan, overframeGroup: LayerNode, kind: any): void {
+function revealOverframeEffectBox(
+	plan: RenderPlan,
+	overframeGroup: LayerNode,
+	kind: CardKind,
+): void {
 	forceVisibleChain(plan, overframeGroup);
 
 	const framesChild = findChild(overframeGroup, LAYER_PATHS.overframeFrames);
@@ -227,7 +215,7 @@ function revealOverframeEffectBox(plan: RenderPlan, overframeGroup: LayerNode, k
 // down through "ATK / DEF" > "ATK/DEF Values" > "Overframe", hiding every other Monster-only
 // decoration (attribute icon, stars, the ATK/DEF text itself, Link Rating, Pendulum Scale) that
 // revealing this one path back through their shared ancestors would otherwise also expose.
-function applyOverframeEffectBox(plan: RenderPlan, monster: LayerNode, kind: any): void {
+function applyOverframeEffectBox(plan: RenderPlan, monster: LayerNode, kind: CardKind): void {
 	const atkDefGroup = tryResolvePath(monster, [LAYER_PATHS.monsterAtkDefGroup]);
 	if (!atkDefGroup) return;
 	forceOnlyVisible(plan, monster, atkDefGroup);
@@ -247,7 +235,7 @@ function buildMonsterPlan(
 	plan: RenderPlan,
 	monster: LayerNode,
 	card: ProxyCard,
-	kind: any,
+	kind: CardKind,
 	isOverframe: boolean,
 ): void {
 	const attributeGroup = tryResolvePath(monster, [LAYER_PATHS.monsterAttribute]);
@@ -446,7 +434,7 @@ function buildSpellTrapPlan(
 	plan: RenderPlan,
 	spellTrap: LayerNode,
 	card: ProxyCard,
-	kind: any,
+	kind: CardKind,
 ): void {
 	const attributeGroup = tryResolvePath(spellTrap, [LAYER_PATHS.spellTrapAttribute]);
 	const iconsGroup = tryResolvePath(spellTrap, [LAYER_PATHS.spellTrapIcons]) ?? spellTrap;

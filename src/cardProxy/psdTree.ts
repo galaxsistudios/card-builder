@@ -1,12 +1,12 @@
 import fs from "fs";
 import path from "path";
-import { readPsd } from "ag-psd";
+import { Layer, readPsd } from "ag-psd";
 import "ag-psd/initialize-canvas";
 import { LayerNode, PsdTree } from "./types";
 
 export const PSD_PATH = path.join(__dirname, "..", "..", "card-template.psd");
 
-export function buildNode(raw: any, parent: LayerNode | null): LayerNode {
+export function buildNode(raw: Layer, parent: LayerNode | null): LayerNode {
 	const isGroup = Array.isArray(raw.children);
 	const node: LayerNode = {
 		name: raw.name ?? "(unnamed)",
@@ -21,7 +21,7 @@ export function buildNode(raw: any, parent: LayerNode | null): LayerNode {
 		raw,
 	};
 	if (isGroup) {
-		node.children = raw.children.map((c: any) => buildNode(c, node));
+		node.children = (raw.children ?? []).map((c) => buildNode(c, node));
 	}
 
 	return node;
@@ -70,7 +70,7 @@ export function loadPsdTree(): PsdTree {
 		raw: psd,
 	};
 
-	root.children = (psd.children ?? []).map((c: any) => buildNode(c, root));
+	root.children = (psd.children ?? []).map((c) => buildNode(c, root));
 
 	const tree: PsdTree = { root, width: psd.width, height: psd.height };
 	console.log(`Parsed PSD: ${psd.width}x${psd.height}, ${countNodes(root)} layers/groups.`);

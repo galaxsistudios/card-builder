@@ -12,7 +12,6 @@ import {
 	getEffectiveOpacity,
 	applyClipMask,
 	applyOpacity,
-	compositeWithLayers,
 } from "./compositing";
 import {
 	resolveContentRoot,

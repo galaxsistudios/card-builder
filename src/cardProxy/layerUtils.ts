@@ -1,3 +1,4 @@
+import { Color, RGB } from "ag-psd";
 import { LayerNode } from "./types";
 
 export function normalizeName(name: string): string {
@@ -126,7 +127,9 @@ export function humanizeFxName(name: string): string {
 		.join(" ");
 }
 
-export function psdColorToHex(color: any): string | undefined {
+export function psdColorToHex(psdColor: Color | undefined): string | undefined {
+	// Only plain 0-255/0-1 RGB colors are supported; other ag-psd color models fall through.
+	const color = psdColor as Partial<RGB> | undefined;
 	if (
 		!color ||
 		typeof color.r !== "number" ||

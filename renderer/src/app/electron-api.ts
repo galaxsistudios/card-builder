@@ -1,4 +1,4 @@
-// Shape of the `window.api` bridge exposed by electron/preload.ts.
+// Shape of the `window.api` bridge exposed by electron/preload.js.
 export interface CardSummary {
 	id: number;
 	name: string;

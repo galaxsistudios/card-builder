@@ -1,4 +1,5 @@
 import { OverlayOptions } from "sharp";
+import { Layer } from "ag-psd";
 
 export interface LayerNode {
 	name: string;
@@ -10,7 +11,16 @@ export interface LayerNode {
 	isGroup: boolean;
 	children: LayerNode[];
 	parent: LayerNode | null;
-	raw: any;
+	raw: Layer | undefined;
+}
+
+// Which broad kind (and sub-kind) of card is being rendered, derived from its type/frameType.
+export interface CardKind {
+	isMonster: boolean;
+	isSpell: boolean;
+	isTrap: boolean;
+	isXyz: boolean;
+	isPendulum: boolean;
 }
 
 export interface PsdTree {

@@ -1,8 +1,9 @@
 import path from "path";
 import fs from "fs";
 import sharp, { OverlayOptions } from "sharp";
-import { LayerNode, RenderPlan, CompositeInput, TextFieldStyle } from "./types";
-import { BLEND_MODE_MAP, TEXT_STYLE } from "./constants";
+import { LayerNode, PsdTree, RenderPlan, CompositeInput, TextFieldStyle } from "./types";
+import { BLEND_MODE_MAP } from "./constants";
+import { psdColorToHex } from "./layerUtils";
 
 export const FONTS_DIR = path.join(__dirname, "..", "..", "fonts");
 
@@ -17,7 +18,7 @@ export function isEffectivelyVisible(node: LayerNode, plan: RenderPlan): boolean
 	return true;
 }
 
-export function resolveBlendMode(node: LayerNode, notes: string[]): any {
+export function resolveBlendMode(node: LayerNode, notes: string[]): CompositeInput["blend"] {
 	const mode = (node.raw?.blendMode as string | undefined)?.toLowerCase();
 	if (!mode || mode === "normal" || mode === "pass through") return undefined;
 	const mapped = BLEND_MODE_MAP[mode];
@@ -30,20 +31,6 @@ export function resolveBlendMode(node: LayerNode, notes: string[]): any {
 	}
 
 	return mapped;
-}
-
-export function psdColorToHex(color: any): string | undefined {
-	if (
-		!color ||
-		typeof color.r !== "number" ||
-		typeof color.g !== "number" ||
-		typeof color.b !== "number"
-	)
-		return undefined;
-	const toByte = (v: number) => Math.max(0, Math.min(255, Math.round(v <= 1 ? v * 255 : v)));
-	const hex = (v: number) => toByte(v).toString(16).padStart(2, "0");
-
-	return `#${hex(color.r)}${hex(color.g)}${hex(color.b)}`;
 }
 
 export function getEffectiveOpacity(node: LayerNode): number {
@@ -203,10 +190,11 @@ export function resolveTextStyle(node: LayerNode, fallback: TextFieldStyle, boxH
 	const psdStyle = node.raw?.text?.style;
 	const psdFontName = psdStyle?.font?.name?.replace(/-Regular$/i, "");
 	const fontFamily = psdFontName || fallback.fontFamily;
+	const psdFontSize = psdStyle?.fontSize ?? 0;
 	const fontSize =
 		fallback.fontSizeOverride ??
-		(!fallback.ignorePsdFontSize && psdStyle?.fontSize > 0
-			? Math.round(psdStyle.fontSize)
+		(!fallback.ignorePsdFontSize && psdFontSize > 0
+			? Math.round(psdFontSize)
 			: Math.round(boxHeight * fallback.sizeRatio));
 	const color = psdColorToHex(psdStyle?.fillColor) ?? fallback.color;
 	const letterSpacing =
@@ -323,7 +311,7 @@ export function toOverlayOptions(input: CompositeInput): OverlayOptions {
 }
 
 export async function compositeWithLayers(
-	tree: any,
+	tree: PsdTree,
 	art: CompositeInput,
 	plan: RenderPlan,
 	canvasWidth: number,
