@@ -2,6 +2,9 @@
   "name": "card-proxy-builder",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "description": "Standalone Yu-Gi-Oh! proxy card image generator - renders a full-resolution card image from card-template.psd plus simple JSON card data and artwork. Has no dependency on the rest of the Duel Worlds codebase, so this folder can be lifted out into its own project as-is.",
   "main": "electron/bootstrap.js",
   "scripts": {
@@ -31,7 +34,7 @@
     "sharp": "^0.35.3"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.7.2",
+    "@electron/rebuild": "^4.2.1",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^8.71.2",
