@@ -19,6 +19,14 @@ import {
 	YgoCard,
 } from "../scripts/cardData";
 import { invalidateCardCache } from "./cardSearch";
+import {
+	optionalInt,
+	optionalString,
+	optionalStringArray,
+	requireObject,
+	requireString,
+} from "./ipcValidation";
+import { resolveInside } from "./pathSafety";
 
 const OUTPUT_DIR = path.join(app.getAppPath(), "output");
 
@@ -35,6 +43,11 @@ export interface CustomCardInput {
 	linkMarkers?: string[] | null;
 	fx?: string[] | null;
 }
+
+// Art files the user actually chose through the native picker this session - the renderer only ever
+// hands a path back, so anything not in here (e.g. an arbitrary file a compromised renderer names)
+// is refused rather than read.
+const pickedArtPaths = new Set<string>();
 
 export interface PickedArtwork {
 	path: string;
@@ -69,9 +82,32 @@ function buildProxyCard(input: CustomCardInput, id: string | number, artPath: st
 	};
 }
 
+// Narrows the renderer's untrusted payload to a real CustomCardInput, field by field.
+export function parseCustomCardInput(raw: unknown): CustomCardInput {
+	const obj = requireObject(raw, "card");
+
+	return {
+		name: requireString(obj.name, "name", 200),
+		type: requireString(obj.type, "type", 100),
+		frameType: requireString(obj.frameType, "frameType", 100),
+		atk: optionalInt(obj.atk, "atk") ?? null,
+		def: optionalInt(obj.def, "def") ?? null,
+		level: optionalInt(obj.level, "level") ?? null,
+		race: optionalString(obj.race, "race") ?? null,
+		attribute: optionalString(obj.attribute, "attribute") ?? null,
+		scale: optionalInt(obj.scale, "scale") ?? null,
+		linkMarkers: optionalStringArray(obj.linkMarkers, "linkMarkers") ?? null,
+		fx: optionalStringArray(obj.fx, "fx") ?? null,
+	};
+}
+
 function requireInput(input: CustomCardInput, artPath: string): void {
 	if (!input.name.trim()) throw new Error("Card needs a name.");
 	if (!input.frameType) throw new Error("Card needs a frame.");
+	if (!pickedArtPaths.has(path.resolve(artPath))) {
+		throw new Error("Artwork must be chosen through the file picker.");
+	}
+
 	if (!fs.existsSync(artPath)) throw new Error(`Artwork file not found: ${artPath}`);
 }
 
@@ -86,6 +122,7 @@ export async function pickArtworkFile(): Promise<PickedArtwork | null> {
 	if (canceled || !filePaths[0]) return null;
 
 	const filePath = filePaths[0];
+	pickedArtPaths.add(path.resolve(filePath));
 	const buffer = fs.readFileSync(filePath);
 	const ext = path.extname(filePath).slice(1).toLowerCase();
 	const mime = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
@@ -161,7 +198,7 @@ export async function saveCustomCardToDatabase(
 	const { png, notes } = await renderProxyCard(tree, proxyCard, artDestPath);
 
 	fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-	const outputPath = path.join(OUTPUT_DIR, `${id}-${sanitizeFilename(input.name)}.png`);
+	const outputPath = resolveInside(OUTPUT_DIR, `${id}-${sanitizeFilename(input.name)}.png`);
 	fs.writeFileSync(outputPath, png);
 
 	return { id, outputPath, dataUrl: `data:image/png;base64,${png.toString("base64")}`, notes };

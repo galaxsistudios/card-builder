@@ -47,9 +47,19 @@ export function saveCardDatabase(db: CardDatabase, dataFile: string = DATA_FILE)
 	fs.writeFileSync(dataFile, JSON.stringify(db, null, 2));
 }
 
-// Strips characters that are illegal in Windows filenames.
+const WINDOWS_RESERVED_NAMES = /^(con|prn|aux|nul|com\d|lpt\d)$/i;
+
+// Strips characters that are illegal in Windows filenames, and neutralizes anything that would be
+// a dot-segment (`..`), end in a dot/space, or be a reserved device name - so the result is always
+// safe to use as a single path segment.
 export function sanitizeFilename(name: string): string {
-	return name.replace(/[\\/:*?"<>|]/g, "").trim();
+	const cleaned = name
+		.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "")
+		.replace(/[. ]+$/, "")
+		.trim();
+	if (!cleaned || cleaned.startsWith(".")) return `_${cleaned}`;
+
+	return WINDOWS_RESERVED_NAMES.test(cleaned.split(".")[0]) ? `_${cleaned}` : cleaned;
 }
 
 export function toProxyCard(card: YgoCard, artPath: string): ProxyCard {

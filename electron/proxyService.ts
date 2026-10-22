@@ -12,6 +12,7 @@ import {
 	toProxyCard,
 } from "../scripts/cardData";
 import { findCard } from "./cardSearch";
+import { resolveInside } from "./pathSafety";
 
 // Exported so ydkService.ts can write a batch's combined decklist.png as a sibling of the
 // Main/Extra/Side subfolders generateProxyForCard's own `subDirs` creates under here.
@@ -116,7 +117,7 @@ export async function generateProxyForCard(
 	);
 
 	const outputDir = subDirs?.length
-		? path.join(OUTPUT_DIR, ...subDirs.map(sanitizeFilename))
+		? resolveInside(OUTPUT_DIR, ...subDirs.map(sanitizeFilename))
 		: OUTPUT_DIR;
 	fs.mkdirSync(outputDir, { recursive: true });
 	const outputPath = path.join(

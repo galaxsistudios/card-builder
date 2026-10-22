@@ -5,6 +5,8 @@ import path from "path";
 import { dialog } from "electron";
 import { sanitizeFilename } from "../scripts/cardData";
 import { findCard } from "./cardSearch";
+import { requireInt, requireIntArray, requireObject, requireString } from "./ipcValidation";
+import { resolveInside } from "./pathSafety";
 import { buildDecklistImage } from "./decklistService";
 import { deckDir } from "./mdpro4/paths";
 import { getMdpro4Path } from "./mdpro4/settingsStore";
@@ -174,6 +176,46 @@ export interface YdkGenerateSelection {
 	section: YdkSection;
 }
 
+const SECTIONS: YdkSection[] = ["main", "extra", "side"];
+
+// Narrows the renderer's untrusted generate payload to real selections/rawSections.
+export function parseYdkGenerateArgs(
+	deckName: unknown,
+	selections: unknown,
+	rawSections: unknown,
+): {
+	deckName: string;
+	selections: YdkGenerateSelection[];
+	rawSections: Record<YdkSection, number[]>;
+} {
+	if (!Array.isArray(selections) || selections.length > 1000) {
+		throw new Error("selections must be an array of at most 1000 entries.");
+	}
+
+	const rawObj = requireObject(rawSections, "rawSections");
+
+	return {
+		deckName: requireString(deckName, "deckName", 100),
+		selections: selections.map((entry, i) => {
+			const obj = requireObject(entry, `selections[${i}]`);
+			const section = obj.section;
+			if (!SECTIONS.includes(section as YdkSection))
+				throw new Error(`selections[${i}].section is invalid.`);
+
+			return {
+				cardId: requireInt(obj.cardId, `selections[${i}].cardId`),
+				artId: requireInt(obj.artId, `selections[${i}].artId`),
+				section: section as YdkSection,
+			};
+		}),
+		rawSections: {
+			main: requireIntArray(rawObj.main, "rawSections.main"),
+			extra: requireIntArray(rawObj.extra, "rawSections.extra"),
+			side: requireIntArray(rawObj.side, "rawSections.side"),
+		},
+	};
+}
+
 export interface YdkGenerateResult extends YdkGenerateSelection {
 	outputPath: string;
 	dataUrl: string;
@@ -249,7 +291,7 @@ export async function generateYdkBatch(
 
 	const batchResult: YdkBatchResult = { results, failed };
 	try {
-		const decklistImagePath = path.join(OUTPUT_DIR, sanitizeFilename(deckName), "decklist.png");
+		const decklistImagePath = resolveInside(OUTPUT_DIR, sanitizeFilename(deckName), "decklist.png");
 		await buildDecklistImage(
 			{
 				main: toImagePaths(rawSections.main),

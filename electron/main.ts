@@ -1,13 +1,21 @@
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, IpcMainInvokeEvent, shell } from "electron";
 import path from "path";
+import { pathToFileURL } from "url";
 import { listFrameOptions, listFxOptions } from "../src/cardProxyGenerator";
 import { searchCards } from "./cardSearch";
 import {
-	CustomCardInput,
 	generateCustomProxy,
+	parseCustomCardInput,
 	pickArtworkFile,
 	saveCustomCardToDatabase,
 } from "./customCardService";
+import {
+	optionalInt,
+	optionalString,
+	optionalStringArray,
+	requireInt,
+	requireString,
+} from "./ipcValidation";
 import { syncMdpro4, SyncProgress } from "./mdpro4/importService";
 import { DEFAULT_MDPRO4_PATH, validateMdpro4Folder } from "./mdpro4/paths";
 import { getMdpro4Path, setMdpro4Path } from "./mdpro4/settingsStore";
@@ -17,8 +25,7 @@ import {
 	importMdpro4Deck,
 	listMdpro4Decks,
 	pickYdkFile,
-	YdkGenerateSelection,
-	YdkSection,
+	parseYdkGenerateArgs,
 } from "./ydkService";
 
 function mdpro4Settings() {
@@ -38,6 +45,33 @@ const devServerUrl = process.env.ELECTRON_START_URL;
 // only ever one window in this app.
 let mainWindow: BrowserWindow | null = null;
 
+const rendererDir = path.join(__dirname, "..", "renderer", "dist", "renderer", "browser");
+
+function isTrustedUrl(url: string): boolean {
+	try {
+		if (devServerUrl) return new URL(url).origin === new URL(devServerUrl).origin;
+
+		return url.startsWith(pathToFileURL(rendererDir).href);
+	} catch {
+		return false;
+	}
+}
+
+// Only our own renderer page may call the IPC handlers - rejects anything else (e.g. a frame that
+// navigated somewhere unexpected) before it can reach the filesystem-touching handlers.
+function handle(
+	channel: string,
+	listener: (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown,
+): void {
+	ipcMain.handle(channel, (event, ...args) => {
+		if (!event.senderFrame || !isTrustedUrl(event.senderFrame.url)) {
+			throw new Error(`Blocked IPC call to "${channel}" from an untrusted sender.`);
+		}
+
+		return listener(event, ...args);
+	});
+}
+
 function createWindow(): void {
 	const win = new BrowserWindow({
 		width: 1280,
@@ -50,13 +84,24 @@ function createWindow(): void {
 		},
 	});
 	mainWindow = win;
+
+	// The app never needs to open other windows or leave its own page; external links go to the
+	// system browser (https only) instead.
+	win.webContents.setWindowOpenHandler(({ url }) => {
+		if (url.startsWith("https://")) shell.openExternal(url);
+
+		return { action: "deny" };
+	});
+	win.webContents.on("will-navigate", (event, url) => {
+		if (!isTrustedUrl(url)) event.preventDefault();
+	});
 	win.on("closed", () => {
 		if (mainWindow === win) mainWindow = null;
 	});
 
 	if (devServerUrl) {
 		win.loadURL(devServerUrl);
-		win.webContents.openDevTools({ mode: "detach" });
+		if (!app.isPackaged) win.webContents.openDevTools({ mode: "detach" });
 	} else {
 		win.loadFile(
 			path.join(__dirname, "..", "renderer", "dist", "renderer", "browser", "index.html"),
@@ -65,42 +110,45 @@ function createWindow(): void {
 }
 
 function registerIpcHandlers(): void {
-	ipcMain.handle("cards:search", (_event, query: string) => searchCards(query));
-	ipcMain.handle("cards:artworks", (_event, id: number) => getCardArtworks(id));
-	ipcMain.handle(
-		"cards:generate",
-		(_event, id: number, artId?: number, fx?: string[], frameType?: string) =>
-			generateProxyForCard(id, artId, fx, frameType),
+	handle("cards:search", (_event, query) => searchCards(requireString(query, "query", 200)));
+	handle("cards:artworks", (_event, id) => getCardArtworks(requireInt(id, "id")));
+	handle("cards:generate", (_event, id, artId, fx, frameType) =>
+		generateProxyForCard(
+			requireInt(id, "id"),
+			optionalInt(artId, "artId"),
+			optionalStringArray(fx, "fx"),
+			optionalString(frameType, "frameType"),
+		),
 	);
-	ipcMain.handle("fx:list", () => listFxOptions());
-	ipcMain.handle("frames:list", () => listFrameOptions());
-	ipcMain.handle("ydk:pick", () => pickYdkFile());
-	ipcMain.handle("ydk:listMdpro4Decks", () => listMdpro4Decks());
-	ipcMain.handle("ydk:importMdpro4Deck", (_event, fileName: string) => importMdpro4Deck(fileName));
-	ipcMain.handle(
-		"ydk:generate",
-		(
-			_event,
-			deckName: string,
-			selections: YdkGenerateSelection[],
-			rawSections: Record<YdkSection, number[]>,
-		) => generateYdkBatch(deckName, selections, rawSections),
+	handle("fx:list", () => listFxOptions());
+	handle("frames:list", () => listFrameOptions());
+	handle("ydk:pick", () => pickYdkFile());
+	handle("ydk:listMdpro4Decks", () => listMdpro4Decks());
+	handle("ydk:importMdpro4Deck", (_event, fileName) =>
+		importMdpro4Deck(requireString(fileName, "fileName", 260)),
 	);
-	ipcMain.handle("custom:pickArt", () => pickArtworkFile());
-	ipcMain.handle("custom:preview", (_event, card: CustomCardInput, artPath: string) =>
-		generateCustomProxy(card, artPath),
+	handle("ydk:generate", (_event, deckName, selections, rawSections) => {
+		const args = parseYdkGenerateArgs(deckName, selections, rawSections);
+
+		return generateYdkBatch(args.deckName, args.selections, args.rawSections);
+	});
+	handle("custom:pickArt", () => pickArtworkFile());
+	handle("custom:preview", (_event, card, artPath) =>
+		generateCustomProxy(parseCustomCardInput(card), requireString(artPath, "artPath", 1000)),
 	);
-	ipcMain.handle("custom:save", (_event, card: CustomCardInput, artPath: string) =>
-		saveCustomCardToDatabase(card, artPath),
+	handle("custom:save", (_event, card, artPath) =>
+		saveCustomCardToDatabase(parseCustomCardInput(card), requireString(artPath, "artPath", 1000)),
 	);
 
-	ipcMain.handle("mdpro4:getSettings", () => mdpro4Settings());
-	ipcMain.handle("mdpro4:setPath", (_event, mdpro4Path: string) => {
-		setMdpro4Path(mdpro4Path);
+	handle("mdpro4:getSettings", () => mdpro4Settings());
+	handle("mdpro4:setPath", (_event, mdpro4Path) => {
+		const folder = requireString(mdpro4Path, "mdpro4Path", 1000);
+		if (!path.isAbsolute(folder)) throw new Error("MDPro4 folder must be an absolute path.");
+		setMdpro4Path(folder);
 
 		return mdpro4Settings();
 	});
-	ipcMain.handle("mdpro4:browse", async () => {
+	handle("mdpro4:browse", async () => {
 		const current = getMdpro4Path();
 		const { canceled, filePaths } = await dialog.showOpenDialog({
 			title: "Select your MDPro4 install folder",
@@ -113,7 +161,7 @@ function registerIpcHandlers(): void {
 
 		return mdpro4Settings();
 	});
-	ipcMain.handle("mdpro4:resync", () => {
+	handle("mdpro4:resync", () => {
 		const mdpro4Path = getMdpro4Path();
 		if (!mdpro4Path) throw new Error("No MDPro4 folder configured yet.");
 
