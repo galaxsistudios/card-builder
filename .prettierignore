@@ -1,0 +1,14 @@
+node_modules/
+dist/
+output/
+card-artworks/
+data/
+cards/
+fonts/
+renderer/node_modules/
+renderer/dist/
+renderer/.angular/
+*.psd
+*.png
+package-lock.json
+renderer/package-lock.json

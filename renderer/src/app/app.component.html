@@ -1,0 +1,464 @@
+<div class="shell">
+	<header class="topbar">
+		<nav class="tabs">
+			<button class="tab" [class.active]="mode === 'search'" (click)="mode = 'search'">
+				Search
+			</button>
+			<button class="tab" [class.active]="mode === 'ydk'" (click)="mode = 'ydk'">
+				Import .ydk deck
+			</button>
+			<button class="tab" [class.active]="mode === 'settings'" (click)="mode = 'settings'">
+				Settings
+			</button>
+		</nav>
+	</header>
+
+	@if (mode === "search") {
+		<div class="search-page">
+			<div class="search-top-bar">
+				<input
+					class="search-box-top"
+					type="text"
+					placeholder="Search by card name or id…"
+					[(ngModel)]="query"
+					(ngModelChange)="onQueryChange()"
+					autofocus
+				/>
+				@if (searching) {
+					<span class="hint inline">Searching…</span>
+				}
+			</div>
+
+			@if (searchError) {
+				<p class="error">{{ searchError }}</p>
+			}
+
+			@if (!selectedCard && results.length) {
+				<div class="search-results-row">
+					<ul class="results results-wide">
+						@for (card of results; track card.id) {
+							<li
+								class="result"
+								(click)="selectCard(card)"
+								(mouseenter)="previewHover(card)"
+								(mouseleave)="clearHoverPreview()"
+							>
+								<span class="result-name">{{ card.name }}</span>
+								<span class="result-meta">#{{ card.id }} · {{ card.type }}</span>
+							</li>
+						}
+					</ul>
+
+					<aside class="hover-preview-panel">
+						@if (hoverPreviewLoading) {
+							<p class="hint">Loading artwork…</p>
+						} @else if (hoverPreviewError) {
+							<p class="error">{{ hoverPreviewError }}</p>
+						} @else if (hoverPreviewCard && hoverPreviewArt.length) {
+							<p class="hint preview-title">{{ hoverPreviewCard.name }}</p>
+							<div class="art-gallery">
+								@for (art of hoverPreviewArt; track art.id) {
+									<div class="art-thumb-wrap">
+										<img class="art-thumb" [src]="art.dataUrl" [alt]="hoverPreviewCard.name" />
+										@if (art.isOverframe) {
+											<span class="overframe-badge">Overframe</span>
+										}
+									</div>
+								}
+							</div>
+						} @else {
+							<p class="hint">Hover a result to preview its artwork.</p>
+						}
+					</aside>
+				</div>
+			}
+
+			@if (!selectedCard && !results.length) {
+				<div class="empty-state">
+					<p>Search for a card by name or id to get started.</p>
+				</div>
+			}
+
+			@if (selectedCard) {
+				<div class="card-detail split-view">
+					<div class="split-left">
+						<div class="card-detail-header">
+							<div>
+								<h2>{{ selectedCard.name }}</h2>
+								<span class="result-meta">#{{ selectedCard.id }} · {{ selectedCard.type }}</span>
+							</div>
+							<button class="link-btn" (click)="clearSelectedCard()">✕ Change card</button>
+						</div>
+
+						@if (artworksError) {
+							<p class="error">{{ artworksError }}</p>
+						}
+
+						@if (artworks.length > 1) {
+							<p class="hint">{{ artworks.length }} art variants - pick one:</p>
+							<div class="art-gallery">
+								@for (art of artworks; track art.id) {
+									<div class="art-thumb-wrap">
+										<img
+											class="art-thumb"
+											[class.selected]="selectedArtId === art.id"
+											[src]="art.dataUrl"
+											[alt]="selectedCard.name + ' art ' + art.id"
+											(click)="selectArt(art)"
+										/>
+										@if (art.isOverframe) {
+											<span class="overframe-badge">Overframe</span>
+										}
+									</div>
+								}
+							</div>
+						} @else if (artworks.length === 1) {
+							<img class="artwork" [src]="artworks[0].dataUrl" [alt]="selectedCard.name" />
+							@if (artworks[0].isOverframe) {
+								<p class="hint">Overframe art - renders without a border.</p>
+							}
+						}
+
+						@if (generated) {
+							<div class="generated">
+								<h3>Proxy generated</h3>
+								<img class="proxy" [src]="generated.dataUrl" [alt]="selectedCard.name + ' proxy'" />
+								<p class="output-path">
+									Saved to <code>{{ generated.outputPath }}</code>
+								</p>
+								@if (generated.notes.length) {
+									<ul class="notes">
+										@for (note of generated.notes; track note) {
+											<li>⚠️ {{ note }}</li>
+										}
+									</ul>
+								}
+							</div>
+						}
+					</div>
+
+					<div class="split-right">
+						@if (selectedArtId !== null && !isSelectedArtOverframe && frameOptions.length) {
+							<label class="frame-picker">
+								Frame
+								<select [(ngModel)]="selectedFrame">
+									<option [ngValue]="null">{{ selectedCard.type }}'s own frame</option>
+									@for (frame of frameOptions; track frame.key) {
+										<option [ngValue]="frame.key">{{ frame.label }}</option>
+									}
+								</select>
+							</label>
+						}
+
+						@if (selectedArtId !== null && fxOptions.length) {
+							<button class="fx-toggle" (click)="fxPanelOpen = !fxPanelOpen">
+								<span class="chevron" [class.open]="fxPanelOpen">▸</span>
+								Effects
+								@if (selectedFx.size) {
+									<span class="fx-count">{{ selectedFx.size }}</span>
+								}
+							</button>
+
+							@if (fxPanelOpen) {
+								<fieldset class="fx-list">
+									@if (artFxOptions.length) {
+										<p class="fx-group-label">Art</p>
+										@for (fx of artFxOptions; track fx.key) {
+											<label class="fx-option">
+												<input
+													type="checkbox"
+													[checked]="selectedFx.has(fx.key)"
+													(change)="toggleFx(fx.key, $any($event.target).checked)"
+												/>
+												{{ fx.label }}
+											</label>
+										}
+									}
+
+									@if (cardFxOptions.length) {
+										<p class="fx-group-label">Card</p>
+										@for (fx of cardFxOptions; track fx.key) {
+											<label class="fx-option">
+												<input
+													type="checkbox"
+													[checked]="selectedFx.has(fx.key)"
+													(change)="toggleFx(fx.key, $any($event.target).checked)"
+												/>
+												{{ fx.label }}
+											</label>
+										}
+									}
+								</fieldset>
+							}
+						}
+
+						@if (selectedArtId !== null) {
+							<button class="generate-btn" [disabled]="generating" (click)="generateProxy()">
+								{{ generating ? "Generating…" : "Generate proxy?" }}
+							</button>
+						}
+
+						@if (generateError) {
+							<p class="error">{{ generateError }}</p>
+						}
+					</div>
+				</div>
+			}
+		</div>
+	}
+
+	@if (mode === "ydk") {
+		<div class="workspace">
+			<aside class="sidebar">
+				<button class="primary-btn" [disabled]="ydkLoading" (click)="pickYdkFile()">
+					{{ ydkLoading ? "Reading…" : "Choose .ydk file…" }}
+				</button>
+
+				@if (mdpro4Decks.length) {
+					<p class="hint mdpro4-deck-divider">or import from MDPro4's Deck folder:</p>
+					<div class="mdpro4-deck-picker">
+						<select [(ngModel)]="mdpro4SelectedDeck">
+							<option [ngValue]="null">Choose a deck…</option>
+							@for (deck of mdpro4Decks; track deck) {
+								<option [ngValue]="deck">{{ stripYdkExtension(deck) }}</option>
+							}
+						</select>
+						<button
+							class="primary-btn"
+							[disabled]="ydkLoading || !mdpro4SelectedDeck"
+							(click)="importMdpro4Deck()"
+						>
+							{{ ydkLoading ? "Reading…" : "Import" }}
+						</button>
+					</div>
+				}
+
+				@if (ydkError) {
+					<p class="error">{{ ydkError }}</p>
+				}
+
+				@if (ydkResult) {
+					<p class="hint">
+						will save to <code>output/{{ ydkResult.deckName }}/</code>
+					</p>
+
+					@if (ydkResult.missingIds.length) {
+						<p class="error">
+							{{ ydkResult.missingIds.length }} id{{
+								ydkResult.missingIds.length === 1 ? "" : "s"
+							}}
+							skipped (not found locally): {{ ydkResult.missingIds.join(", ") }}
+						</p>
+					}
+
+					@for (group of ydkSectionGroups; track group.section) {
+						<h3 class="section-heading">{{ group.label }} ({{ group.cards.length }})</h3>
+						<ul class="ydk-cards">
+							@for (card of group.cards; track card.id) {
+								<li class="ydk-card">
+									<div class="ydk-card-header">
+										<span class="result-name">{{ card.name }}</span>
+										<span class="result-meta">#{{ card.id }}</span>
+									</div>
+
+									@if (card.artworks.length > 1) {
+										<p class="hint">
+											{{ card.artworks.length }} art variants - select which to export:
+										</p>
+										<div class="art-gallery">
+											@for (art of card.artworks; track art.id) {
+												<div class="art-thumb-wrap">
+													<img
+														class="art-thumb small"
+														[class.selected]="isYdkArtSelected(card.id, art.id)"
+														[src]="art.dataUrl"
+														[alt]="card.name + ' art ' + art.id"
+														(click)="
+															toggleYdkArt(card.id, art.id, !isYdkArtSelected(card.id, art.id))
+														"
+													/>
+													@if (art.isOverframe) {
+														<span class="overframe-badge small">Overframe</span>
+													}
+												</div>
+											}
+										</div>
+									} @else {
+										<img class="artwork-small" [src]="card.artworks[0].dataUrl" [alt]="card.name" />
+									}
+								</li>
+							}
+						</ul>
+					}
+				}
+			</aside>
+
+			<section class="main-panel">
+				@if (!ydkResult) {
+					<div class="empty-state">
+						<p>Choose a .ydk file to get started.</p>
+					</div>
+				} @else {
+					<div class="ydk-export">
+						@if (ydkExportList.length) {
+							<h2>
+								Will export {{ ydkExportList.length }}
+								{{ ydkExportList.length === 1 ? "proxy" : "proxies" }} to
+								<code>output/{{ ydkResult.deckName }}/</code>
+							</h2>
+
+							@for (group of ydkExportGroups; track group.section) {
+								<h3 class="section-heading">{{ group.label }} ({{ group.items.length }})</h3>
+								<div class="art-gallery">
+									@for (item of group.items; track item.cardId + ":" + item.artId) {
+										<div class="ydk-export-item">
+											<img class="art-thumb" [src]="item.dataUrl" [alt]="item.name" />
+											<p class="ydk-filename">{{ item.fileName }}</p>
+										</div>
+									}
+								</div>
+							}
+
+							<button class="generate-btn" [disabled]="ydkGenerating" (click)="confirmYdkExport()">
+								{{
+									ydkGenerating
+										? "Generating…"
+										: "Confirm & generate " + ydkExportList.length + " proxies"
+								}}
+							</button>
+						} @else {
+							<p class="hint">Select at least one art per card in the list to export it.</p>
+						}
+
+						@if (ydkGenerateError) {
+							<p class="error">{{ ydkGenerateError }}</p>
+						}
+
+						@if (ydkBatchResult) {
+							<div class="generated">
+								<h3>
+									{{ ydkBatchResult.results.length }} generated
+									@if (ydkBatchResult.failed.length) {
+										, {{ ydkBatchResult.failed.length }} failed
+									}
+								</h3>
+								<div class="art-gallery">
+									@for (r of ydkBatchResult.results; track r.cardId + ":" + r.artId) {
+										<img class="art-thumb" [src]="r.dataUrl" [alt]="'card ' + r.cardId" />
+									}
+								</div>
+								@if (ydkBatchResult.failed.length) {
+									<ul class="notes">
+										@for (f of ydkBatchResult.failed; track f.cardId + ":" + f.artId) {
+											<li>⚠️ card {{ f.cardId }} (art {{ f.artId }}): {{ f.error }}</li>
+										}
+									</ul>
+								}
+
+								@if (ydkBatchResult.decklistDataUrl) {
+									<h3>Decklist overview</h3>
+									<p class="hint">
+										Saved to <code>output/{{ ydkResult.deckName }}/decklist.png</code>
+									</p>
+									<img
+										class="decklist-preview"
+										[src]="ydkBatchResult.decklistDataUrl"
+										alt="Combined decklist overview"
+									/>
+								}
+								@if (ydkBatchResult.decklistError) {
+									<p class="error">⚠️ Decklist overview: {{ ydkBatchResult.decklistError }}</p>
+								}
+							</div>
+						}
+					</div>
+				}
+			</section>
+		</div>
+	}
+
+	@if (mode === "settings") {
+		<div class="workspace">
+			<section class="main-panel">
+				<div class="settings-panel">
+					<h2>MDPro4 connection</h2>
+					<p class="hint">
+						Point this at your MDPro4 install to build the card database and import artwork
+						(Picture\Art, Picture\OverFrame) straight from it. You can resync at any time to pick up
+						new or updated cards.
+					</p>
+
+					<label class="field settings-path-field">
+						MDPro4 folder
+						<div class="settings-path-row">
+							<input
+								type="text"
+								[(ngModel)]="mdpro4PathInput"
+								(keyup.enter)="applyMdpro4Path()"
+								[placeholder]="mdpro4Settings?.defaultPath"
+							/>
+							<button
+								class="primary-btn"
+								[disabled]="mdpro4Browsing"
+								(click)="browseMdpro4Folder()"
+							>
+								{{ mdpro4Browsing ? "Opening…" : "Browse…" }}
+							</button>
+							<button class="link-btn" (click)="applyMdpro4Path()">Use this path</button>
+						</div>
+					</label>
+
+					@if (mdpro4Settings) {
+						@if (mdpro4Settings.validation.valid) {
+							<p class="settings-status ok">✓ Valid MDPro4 install.</p>
+						} @else {
+							<p class="settings-status bad">
+								✗ Not a valid MDPro4 folder - missing
+								{{ mdpro4Settings.validation.missing.join(", ") }}.
+							</p>
+						}
+					}
+
+					@if (mdpro4Error) {
+						<p class="error">{{ mdpro4Error }}</p>
+					}
+
+					<button
+						class="generate-btn"
+						[disabled]="!mdpro4Settings?.validation?.valid || mdpro4Syncing"
+						(click)="resyncMdpro4()"
+					>
+						@if (mdpro4Syncing) {
+							<span class="spinner"></span> Syncing…
+						} @else {
+							Resync now
+						}
+					</button>
+
+					@if (mdpro4Syncing) {
+						<p class="hint sync-status">
+							<span class="spinner"></span>
+							{{ mdpro4Progress ? mdpro4ProgressLabel : "Starting sync…" }}
+						</p>
+					}
+
+					@if (mdpro4SyncError) {
+						<p class="error">{{ mdpro4SyncError }}</p>
+					}
+
+					@if (mdpro4Summary) {
+						<div class="generated">
+							<h3>Sync complete</h3>
+							<p class="hint">
+								{{ mdpro4Summary.totalCards }} card(s) scanned - {{ mdpro4Summary.added }} added,
+								{{ mdpro4Summary.updated }} updated, {{ mdpro4Summary.unchanged }} unchanged.
+								{{ mdpro4Summary.artCopied }} artwork file(s) and
+								{{ mdpro4Summary.overframesCopied }} overframe(s) copied.
+							</p>
+						</div>
+					}
+				</div>
+			</section>
+		</div>
+	}
+</div>

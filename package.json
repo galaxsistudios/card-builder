@@ -3,23 +3,47 @@
   "version": "0.1.0",
   "private": true,
   "description": "Standalone Yu-Gi-Oh! proxy card image generator - renders a full-resolution card image from card-template.psd plus simple JSON card data and artwork. Has no dependency on the rest of the Duel Worlds codebase, so this folder can be lifted out into its own project as-is.",
+  "main": "electron/bootstrap.js",
   "scripts": {
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
     "generate": "ts-node src/generateProxy.ts",
     "inspect": "ts-node src/generateProxy.ts --inspect",
     "list-layers": "ts-node src/generateProxy.ts --list-layers",
     "list-frames": "ts-node src/generateProxy.ts --list-frames",
+    "list-fx": "ts-node src/generateProxy.ts --list-fx",
     "setup-data": "ts-node scripts/setupProjectData.ts",
     "build-all": "ts-node scripts/buildAllCards.ts",
-    "build-deck": "ts-node scripts/buildDeckCards.ts"
+    "build-deck": "ts-node scripts/buildDeckCards.ts",
+    "renderer:install": "npm --prefix renderer install",
+    "renderer:serve": "npm --prefix renderer start",
+    "renderer:build": "npm --prefix renderer run build",
+    "dev": "concurrently -k -s first \"npm run renderer:serve\" \"wait-on http://localhost:4200 && cross-env ELECTRON_START_URL=http://localhost:4200 electron .\"",
+    "start": "npm run renderer:build && electron .",
+    "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\" \"electron/**/*.{ts,js}\" \"renderer/src/**/*.{ts,html,css}\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"scripts/**/*.ts\" \"electron/**/*.{ts,js}\" \"renderer/src/**/*.{ts,html,css}\"",
+    "lint": "eslint \"src/**/*.ts\" \"scripts/**/*.ts\" \"electron/**/*.{ts,js}\" \"renderer/src/**/*.ts\"",
+    "lint:fix": "eslint --fix \"src/**/*.ts\" \"scripts/**/*.ts\" \"electron/**/*.{ts,js}\" \"renderer/src/**/*.ts\""
   },
   "dependencies": {
     "ag-psd": "^31.0.2",
+    "better-sqlite3": "^12.11.1",
     "canvas": "^3.2.3",
     "sharp": "^0.35.3"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.71.2",
+    "@typescript-eslint/parser": "^8.71.2",
+    "concurrently": "^10.0.6",
+    "cross-env": "^10.1.0",
+    "electron": "^44.9.0",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.10",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "wait-on": "^9.5.1"
   }
 }
